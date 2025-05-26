@@ -1,0 +1,52 @@
+---
+title: "aplicaciones-de-redes-neuronales-a-datos-tabulares"
+output: html_document
+date: "2025-05-26"
+---
+
+```{r}
+library(readxl)
+```
+
+
+```{r importacion-dataset-kaggle,  eval = FALSE, echo=FALSE, include=FALSE}
+# Solo válido para Windows
+# Ejecutar una única vez
+
+# system("curl -L -o ~/Downloads/credit-risk-dataset.zip https://www.kaggle.com/api/v1/datasets/download/ranadeep/credit-risk-dataset")
+
+system("kaggle datasets download -d ranadeep/credit-risk-dataset")
+
+```
+
+```{r importacion-dataset-kaggle-con-cURL,  eval = FALSE, echo=FALSE, include=FALSE}
+# En caso de no tener kaggleHub
+system("curl -L -o ./credit-risk-dataset.zip https://www.kaggle.com/api/v1/datasets/download/ranadeep/credit-risk-dataset")
+```
+
+```{r}
+zip_path <- "./credit-risk-dataset.zip"
+```
+
+```{r lectura-datos-loanCSV, eval = FALSE}
+
+csv_loan <- "loan/loan.csv"
+loan_df <- read.csv(unz(zip_path, csv_loan))
+```
+```{r}
+head(loan_df)
+```
+
+```{r lectura-datos-DataDictionaryXLSX }
+
+xlsx_file <- "LCDataDictionary.xlsx"
+temp_dir <- tempdir()
+temp_xlsx_path <- file.path(temp_dir, basename(xlsx_file))
+unzip(zipfile = zip_path, files = xlsx_file, exdir = temp_dir)
+sheet_names <- excel_sheets(temp_xlsx_path)
+loan_stats <- read_excel(temp_xlsx_path, sheet = "LoanStats")
+browse_notes <- read_excel(temp_xlsx_path, sheet = "browseNotes")
+reject_stats <- read_excel(temp_xlsx_path, sheet = "RejectStats")
+```
+
+
