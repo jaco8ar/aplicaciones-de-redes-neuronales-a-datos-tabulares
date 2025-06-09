@@ -1,0 +1,21 @@
+_quarto/
+*.html
+*_files/
+*_cache/
+*.pdf
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/ or venv/ (virtual environment directory)
+*.log
+*.swp
+*.swo
+*.env
+*.DS_Store (macOS specific)
+*.pytest_cache/
+*.ruff_cache/
+*.vscode/
+*.idea/
