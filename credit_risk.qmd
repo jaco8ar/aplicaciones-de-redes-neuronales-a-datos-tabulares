@@ -36,6 +36,7 @@ Se debe hacer claridad que el modelo pretende determinar si un cliente es malo, 
 
 ### Objetivos del proyecto
 Con el desarrollo del proyecto se debe cumplir con los siguientes objetivos:
+
 * El modelo clasifica satisfactoriamente a un cliente como *malo* o *no malo*.
 * El modelo es relevante y práctico en el contexto económico colombiano.
 * El modelo utiliza información relevante y de fácil acceso para el usuario.
@@ -46,13 +47,14 @@ Para el desarrollo de este proyecto se van determinar unas limitaciones en cuant
 
 * No se van a realizar procesos de procesamiento de lenguaje natural, ya que esto va más allá de los conocimientos compartidos en el curso hasta este punto. Esto implica que variables como *desc* no seran consideradas para la construcción del modelo.
 * No se van a tomar en cuenta variables con información geográfica. A pesar de que estas pueden aportar información valiosa es de crucial importancia mantener la utilidad y prácticidad del modelo. Dado que el dataset utilizado fue recopilado en EE. UU. esta información sería irrelevante para el contexto económico de Colombia.
-
+* Solo se van a considerar créditos individuales, por lo que los registros correspondientes a creditos conjuntos serán descartados.
+* No se van a utilzar variables que indiquen fechas ya que no se conoce el tiempo desde que fueron recopilados los datos. Esta información no tendría ningun valor para la construcción del modelo.
 ### Fases de desarrollo
 Se definen las siguientes fases de desarrollo del modelo:
 
 1. Definición de metodología del proyecto.
 2. Análisis exploratorio de los datos.
-3. Definición de variable objetivo e hipótesis nula.
+3. Definición de variable objetivo e hipótesis.
 4. Construcción y optimización del modelo.
 5. Construcción de árbol de decisión como modelo de baja complejidad de referencia.
 6. Creación de scorecard.
@@ -65,7 +67,12 @@ Se definen las siguientes fases de desarrollo del modelo:
 Es importante mencionar que no todas las fases de desarrollo serán llevadas a cabo de manera sequencial o en orden como el desarrollo de la aplicación web que será paralelo al desarrollo del modelo.
 
 
+## Análisis Exploratorio de los Datos
 
+tan 
+tan
+tan
+Se identificaron variables consideradas como data-leakage. 
 
 
 
