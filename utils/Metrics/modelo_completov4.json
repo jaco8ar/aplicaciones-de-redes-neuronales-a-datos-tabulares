@@ -1,0 +1,11 @@
+{
+    "test_accuracy": 0.7814396901649723,
+    "balanced_accuracy": 0.5589037716970948,
+    "f1_score": 0.24611432241490044,
+    "true_positives": 958,
+    "true_negatives": 20026,
+    "false_positives": 945,
+    "false_negatives": 4924,
+    "support_class_0": 20971,
+    "support_class_1": 5882
+}

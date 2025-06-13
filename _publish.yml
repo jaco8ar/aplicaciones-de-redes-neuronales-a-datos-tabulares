@@ -1,0 +1,12 @@
+- source: credit_risk.qmd
+  quarto-pub:
+    - id: 9bb0d03a-d560-410a-91d4-0610b5c0179d
+      url: https://jochoara.quarto.pub/modelamiento-del-riesgo-de-crédito-mediante-redes-neuronales-artificiales
+- source: index.qmd
+  quarto-pub:
+    - id: 662b4295-580f-4d6c-8f65-6560a18eaa9e
+      url: https://jochoara.quarto.pub/modelamiento-del-riesgo-de-crédito-mediante-redes-neuronales-artificiales-735a
+- source: project
+  quarto-pub:
+    - id: 171736fa-87d9-4562-a235-3b42b423a640
+      url: https://jochoara.quarto.pub/riesgo-crediticio

@@ -1,0 +1,392 @@
+---
+title: "Modelamiento del Riesgo de Crédito mediante Redes Neuronales Artificiales"
+author: 
+  - "Juan José Correa Hurtado"
+  - "Jacobo Ochoa Ramírez"
+institute: "Universidad Nacional de Colombia"
+course: "Redes Neuronales y Algoritmos Bioinspirados"
+professor: "Juan David Ospina Arango"
+date: "`13/05/2025"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: true
+execute:
+  echo: false
+   
+---
+![](images/logo_UNAL.png){width=200px}
+
+
+<!-- ```{=latex}
+\listoftables
+
+``` -->
+
+```{python}
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from sklearn.metrics import confusion_matrix
+
+def plot_confusion_matrices(y_true, y_pred, labels=[0, 1], title="Matriz de Confusión"):
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100  # Porcentaje por fila
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Matriz absoluta
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=labels, yticklabels=labels, ax=axes[0])
+    axes[0].set_title('Conteos absolutos')
+    axes[0].set_xlabel('Etiqueta predicha')
+    axes[0].set_ylabel('Etiqueta real')
+
+    # Matriz porcentual
+    sns.heatmap(cm_percent, annot=True, fmt='.1f', cmap='Blues',
+                xticklabels=labels, yticklabels=labels, ax=axes[1])
+    axes[1].set_title('Porcentajes (%)')
+    axes[1].set_xlabel('Etiqueta predicha')
+    axes[1].set_ylabel('Etiqueta real')
+
+    plt.suptitle(title)
+    plt.tight_layout()
+    plt.show()
+
+
+```
+
+# Introducción
+El acceso al crédito ha sido una herramienta clave en la inclusión financiera, pero también representa un riesgo significativo para las entidades prestamistas. Anticipar el comportamiento de pago de los solicitantes de crédito permite a las organizaciones mitigar pérdidas y ofrecer condiciones más adecuadas a sus clientes.
+
+Este proyecto tiene como objetivo desarrollar un modelo predictivo que estime la probabilidad de que una persona incurra en incumplimiento de pago en un crédito otorgado. Para ello, se utilizará una red neuronal artificial cuya arquitectura será optimizada con base en métricas de desempeño y técnicas de validación cruzada. Además, se construirá una scorecard para representar los resultados de manera interpretable.
+
+Se debe hacer claridad que el modelo pretende determinar si un cliente es malo, codificando la variable *loan_status*, anulando registros NA e identificando registros de clientes *malos* como 1 y aquellos que no como 0.
+
+El producto final de este proyecto se encuentra desplegado en la página:
+
+# Metodología
+
+## Objetivos del proyecto
+Con el desarrollo del proyecto se debe cumplir con los siguientes objetivos:
+
+* El modelo clasifica satisfactoriamente a un cliente como *malo* o *no malo*.
+* El modelo es relevante y práctico en el contexto económico colombiano.
+* El modelo utiliza información relevante y de fácil acceso para el usuario.
+* Identificar las variables más relevantes en el comportamiento crediticio.
+
+## Limitaciones
+Para el desarrollo de este proyecto se van determinar unas limitaciones en cuanto a lo que se va a realizar para el procesamiento de los datos y diseño del modelo, estas son:
+
+* No se van a realizar procesos de procesamiento de lenguaje natural, ya que esto va más allá de los conocimientos compartidos en el curso hasta este punto. Esto implica que variables como *desc* no seran consideradas para la construcción del modelo.
+* No se van a tomar en cuenta variables con información geográfica. A pesar de que estas pueden aportar información valiosa es de crucial importancia mantener la utilidad y prácticidad del modelo. Dado que el dataset utilizado fue recopilado en EE. UU. esta información sería irrelevante para el contexto económico de Colombia.
+* Solo se van a considerar créditos individuales, por lo que los registros correspondientes a creditos conjuntos serán descartados.
+* No se van a utilzar variables que indiquen fechas ya que no se conoce el tiempo desde que fueron recopilados los datos. Esta información no tendría ningun valor para la construcción del modelo.
+
+## Fases de desarrollo
+
+Se definen las siguientes fases de desarrollo del modelo:
+
+1. Definición de metodología del proyecto.
+2. Análisis exploratorio de los datos.
+3. Definición de variable objetivo e hipótesis.
+4. Construcción y optimización del modelo.
+5. Construcción de árbol de decisión como modelo de baja complejidad de referencia.
+6. Creación de scorecard.
+7. Listado de aprendizajes.
+8. Planteamiento de caso de uso del modelo.
+8. Redacción de reporte técnico.
+9. Desarrollo de aplicación web.
+10. Creación de video publicitario.
+
+Es importante mencionar que no todas las fases de desarrollo serán llevadas a cabo de manera sequencial o en orden como el desarrollo de la aplicación web que será paralelo al desarrollo del modelo.
+
+
+# Análisis Exploratorio de los Datos (EAD)
+
+Para visualizar en detalle el EAD y la construcción del modelo véase el siguiete notebook en el que se ejecutó el proyecto: 
+https://colab.research.google.com/drive/1U-OEjypK1s65GYBDMmmGsJf2vHo88CTr#scrollTo=dbHz6z6JNrR3
+
+Se realizó el siguiente procedimiento:
+
+1. Eliminación de variables acorde a limitaciones del proyecto
+
+    - Eliminación de variables irrelevantes para el modelo
+    - Eliminación de registros "JOINT" y columnas asociadas
+    - Eliminación de variables que requieren de PLN para ser de utilidad
+    - Eliminación de variables con información geográfica
+    - Eliminación de variables con fechas
+
+2. Se identificaron y eliminaron variables post-resultado, las cuales causaban **data-leakage**
+
+    Se identificaron como todas aquellas que tengan las palabras "rec", "pymnt" y "out" en el nombre, a excepción de la variable "mths_since_last_record".
+
+3. Manejo de valores nulos
+
+
+    Se identificaron 11 variables cuya cantidad de valores nulos supera el 5%. Para la mayoría de estas variables  valor se identificó que un valor nulo no necesariamente representa un registro faltante. Por este motivo se opta por codificar los valores nulos como su significado en el contexto de la variable. Aquellas cuyos valores nulos no se les encontró significancia fueron descartadas.
+
+    Adicionalmente se generó una variable bandera por cada una de las variables anteriormente codificadas para analizar si la existencia de los valores nulos tiene algún valor predictivo.
+
+    Se imputa con la mediana los registros cuyo indice de valores NA sean menores que el 5%. 
+
+
+4. Se codificó la variable objetivo de acuerdo a las siguientes indicaciones:
+
+
+
+| Estado del Crédito                                                       | Codificación | Justificación                                                  |
+|--------------------------------------------------------------------------|--------------|----------------------------------------------------------------|
+| Current                                                                  | NA           | No hay certeza sobre su comportamiento final de pago.         |
+| Fully Paid                                                               | 0            | Son buenos pagadores confirmados.                              |
+| Charged Off                                                              | 1            | Son definitivamente malos pagadores.                           |
+| Late (31-120 days)                                                       | 1            | Se considerarán como malos pagadores.                          |
+| Issued                                                                   | NA           | No hay información sobre comportamiento de pago.              |
+| In Grace Period                                                          | NA           | Aún no están obligados a pagar.                                |
+| Late (16-30 days)                                                        | NA           | No hay certeza sobre su comportamiento final.                 |
+| Does not meet the credit policy. Status:Fully Paid                      | 0            | Son buenos pagadores confirmados.                              |
+| Default                                                                  | 1            | Son definitivamente malos pagadores.                           |
+| Does not meet the credit policy. Status:Charged Off                     | 1            | Son definitivamente malos pagadores.                           |
+
+  
+5. Se realiza análisis de correlación y se opta por conservar una única variable bandera ya que estaban altamente correlacionadas entre sí.
+
+![](images/correlacion.png){width=800px}
+
+6. Se realiza la codificación tipo *One-hot-encoding* con valores de -1/1 para las variables categóricas.
+
+7. Se normalizan las variables numéricas en el intervalo [-1,1]. Adicionalmente se conservan los valores máximos y mínimos en archivos .csv para ser utilizados en la normalización del modelo de producción.
+
+
+
+# Construcción y Optimización del Modelo
+
+## Construcción
+
+**Clase NN (Red Neuronal)**
+    La clase NN representa la arquitectura del modelo de red neuronal utilizado para la clasificación binaria. Fue implementada mediante PyTorch (nn.Module) y su propósito es modelar relaciones no lineales entre las variables predictoras y la probabilidad de incumplimiento de un préstamo.
+
+- Estructura del modelo:
+
+    * Capa 1: Linear(input_size, 512) – capa totalmente conectada con función de activación ReLU.
+
+    * Dropout: Se aplica una capa de regularización con probabilidad configurable (ej. 0.3) para prevenir sobreajuste.
+
+    * Capa de salida: Linear(512, 1) – salida lineal que se conecta a una función de pérdida sigmoide implícita (via BCEWithLogitsLoss).
+
+    * Método forward: Define el flujo de datos a través de la red, aplicando la activación y el dropout entre capas.
+
+Esta clase es flexible y permite ajustar la arquitectura fácilmente modificando el número de neuronas o capas.
+
+**Clase Trainer**
+    La clase Trainer encapsula todo el proceso de entrenamiento, validación y evaluación del modelo. Fue diseñada para separar la lógica del entrenamiento del resto del flujo del proyecto, facilitando la reproducibilidad y modularidad.
+
+* Constructor (__init__):
+
+    - Recibe el modelo, los datos ya particionados (entrenamiento, validación, prueba), pesos de clase y rutas para guardar artefactos.
+
+    - Aplica estandarización (con StandardScaler) si se utiliza entrenamiento completo.
+
+* Método create_dataloaders:
+
+    - Convierte los conjuntos de datos en objetos DataLoader para entrenamiento por lotes.
+
+* Método train:
+
+    - Ejecuta el entrenamiento en múltiples épocas.
+
+    - Utiliza la función de pérdida BCEWithLogitsLoss con ponderación de clases para manejar el desbalance.
+
+    - Emplea ReduceLROnPlateau para ajustar la tasa de aprendizaje automáticamente.
+
+    - Implementa early stopping basado en la pérdida de validación.
+
+    - Guarda automáticamente el mejor modelo en disco (en la carpeta Models/).
+
+* Método evaluate:
+
+    - Calcula predicciones en el conjunto de prueba y reporta métricas como accuracy, F1, recall, y balanced accuracy.
+
+    - Guarda los resultados en archivos .json para análisis posterior.
+
+
+## Optimización
+
+Para tener un punto de referencia se entrenó un modelo con todas las variables disponibles para luego compararse con un número de variables razonable para un usuario que está llenando un formulario y tiene tiempo e información limitada.
+
+```{python}
+
+```
+### Modelo Completo
+```{python}
+import json
+import os
+
+# Cargar métricas (ajusta la ruta si es necesario)
+ruta_metricas = os.path.join("utils", "Metrics", "modelo_completov4.json")
+with open(ruta_metricas, "r") as f:
+    metricas = json.load(f)
+
+# Simular predicciones reales si no tienes y_true/y_pred
+# Aquí los reconstruimos desde los valores de la matriz
+y_true = [0] * (metricas["true_negatives"] + metricas["false_positives"]) + [1] * (metricas["false_negatives"] + metricas["true_positives"])
+y_pred = ([0] * metricas["true_negatives"] + [1] * metricas["false_positives"] +
+          [0] * metricas["false_negatives"] + [1] * metricas["true_positives"])
+
+# Llamar función
+plot_confusion_matrices(y_true, y_pred)
+```
+
+### Modelo Reducido 
+Para la definición de este modelo se utilizaron las siguientes variables
+
+
+| Variable                               | Descripción                                                      |
+|----------------------------------------|------------------------------------------------------------------|
+| `int_rate`                             | Tasa de interés del préstamo                                     |
+| `term_ 60 months`                      | Duración del préstamo en meses (60 meses)                        |
+| `dti`                                  | Relación deuda-ingreso del solicitante                           |
+| `verification_status_Source Verified` | Verificación del ingreso por la fuente original                  |
+| `revol_util`                           | Utilización del crédito renovable (%)                            |
+| `installment`                          | Cuota mensual del préstamo                                       |
+| `home_ownership`                       | Tipo de tenencia de la vivienda (alquilada, propia, hipotecada)  |
+| `sub_grade`                            | Subcategoría de riesgo crediticio asignada al préstamo           |
+| `purpose`                              | Propósito declarado del préstamo                                 |
+
+```{python}
+
+ruta_metricas = os.path.join("utils", "Metrics", "10_mas_importantes_y_dummiesv7.json")
+with open(ruta_metricas, "r") as f:
+    metricas = json.load(f)
+
+# Simular predicciones reales si no tienes y_true/y_pred
+# Aquí los reconstruimos desde los valores de la matriz
+y_true = [0] * (metricas["true_negatives"] + metricas["false_positives"]) + [1] * (metricas["false_negatives"] + metricas["true_positives"])
+y_pred = ([0] * metricas["true_negatives"] + [1] * metricas["false_positives"] +
+          [0] * metricas["false_negatives"] + [1] * metricas["true_positives"])
+
+# Llamar función
+plot_confusion_matrices(y_true, y_pred)
+```
+
+
+### Modelo Reducido para Recall
+Con estas mismas variables se entrenó un segundo modelo cuyo objetivo es máximizar la metrica recall para la clase 1. Esto se logró modificando el peso que recibe la función `nn.BCEWithLogitsLoss`.
+
+Este cambio se realizo con el objetivo de minimizar el número de clientes *"malos"* que puedan ser categorizados como clientes *"no malos"*. Esto es crucial para instituciones prestadoras, puesto que realizar prestamos a clientes con un pérfil de riesgo peligroso puede representar una perdida asegurada.
+
+
+```{python}
+
+ruta_metricas = os.path.join("utils", "Metrics", "10_mas_importantes_y_dummiesvBiggerRecall.json")
+with open(ruta_metricas, "r") as f:
+    metricas = json.load(f)
+
+# Simular predicciones reales si no tienes y_true/y_pred
+# Aquí los reconstruimos desde los valores de la matriz
+y_true = [0] * (metricas["true_negatives"] + metricas["false_positives"]) + [1] * (metricas["false_negatives"] + metricas["true_positives"])
+y_pred = ([0] * metricas["true_negatives"] + [1] * metricas["false_positives"] +
+          [0] * metricas["false_negatives"] + [1] * metricas["true_positives"])
+
+# Llamar función
+plot_confusion_matrices(y_true, y_pred)
+```
+
+Este es el modelo que se va a utilizar en el despliegue de la página.
+
+##### Importancia de las Variables
+
+Se utilizó la técnica `Feature Importance via Permutation` para analizar la incidencia de cada una de las variables en el resultado final del modelo
+
+![](images/feature_importance.png){width=800px}
+
+Para la métrica objetivo *recall* se obtiene que la caracteristica más importante es el subgrado A2 y es bastante claro que la variabe `subgrade` tuvo un gran efecto en el entrenamiento del modelo.
+
+# Modelo de Baja Complejidad
+
+Se optó por construir un arbol binario como modelo de baja complejidad porque este es de fácil interpretación y se puede analizar con una representación gráfica. Esto puede ayudar a entender mejor los conceptos, muy diferente a un red neuronal que muchas veces es denomminada como *caja negra*.
+
+La raíz del arbol construido tiene la siguiente estructura:
+
+![](images/arbol_binario.jpg){width=800px}
+
+## Interpretación de Árboles de Decisión y Comparación con Redes Neuronales
+
+El árbol de decisión divide el conjunto de datos en ramas, tomando decisiones binarias en cada nodo interno según una variable.  
+En nuestro caso, una de esas variables clave es la tasa de interés (`int_rate`).  
+El árbol decide qué variable usar para dividir en cada nodo con base en una **medida de impureza**, la cual evalúa qué tan puras son las divisiones.  
+Un nodo es considerado puro cuando contiene observaciones de una sola clase.
+
+Este tipo de modelo permite detectar relaciones **no lineales** y combinaciones de condiciones.  
+Por ejemplo:
+
+> Las personas con tasa de interés alta (`int_rate`) y bajo ingreso (`annual_inc`) podrían tener mayor riesgo de incumplimiento.
+
+Estas condiciones no se interpretan de forma aislada, sino **conjuntamente**.
+
+A continuación, se presenta una comparación entre árboles de decisión y redes neuronales:
+
+| **Aspecto**                   | **Árbol de decisión** | **Red neuronal**           |
+|------------------------------|------------------------|-----------------------------|
+| Interpretabilidad            | Alta                   | Baja                        |
+| Complejidad de patrones      | Baja-Media             | Alta                        |
+| Requiere escalado            | No                     | Sí                          |
+| Datos desbalanceados         | Afectan mucho          | Se puede mitigar con técnicas adicionales |
+| Tiempo de entrenamiento      | Rápido                 | Puede ser más lento         |
+
+
+
+# Creación de Scorecard
+
+Dado que ya se ha definido el modelo que será utilizado en el despliegue, se construye la siguiente *ScoreCard*:
+
+![](images/scorecard.png){width=800px}
+
+
+# Listado de Aprendizajes
+
+## Aprendizajes del Proyecto
+
+**Importancia de la limpieza de datos**  
+El proceso de depuración de variables y registros irrelevantes fue esencial para garantizar que el modelo se entrene sobre información útil y no contaminada, evitando fenómenos como el *data leakage*.
+
+**Balance entre desempeño y simplicidad**  
+Se comprobó que es posible construir modelos con un número reducido de variables que mantengan un desempeño competitivo. Esto es crucial para facilitar la implementación práctica en escenarios donde el *input* del usuario es limitado.
+
+**Impacto del desbalance de clases**  
+La necesidad de ajustar los pesos en la función de pérdida para mejorar métricas como el *recall* evidencia cómo un desbalance puede afectar fuertemente los resultados del modelo y la toma de decisiones.
+
+**El valor del análisis exploratorio profundo**  
+Un análisis exploratorio riguroso permitió tomar decisiones informadas sobre imputación de valores nulos, codificación de variables y selección de características.
+
+**Ventajas de modularizar el código**  
+Diseñar clases como `NN` y `Trainer` permitió mantener el código organizado, reutilizable y fácilmente ajustable durante las fases de prueba y optimización.
+
+**Importancia de métricas múltiples**  
+Más allá del *accuracy*, métricas como *f1-score*, *recall* y *balanced accuracy* permiten una evaluación más precisa del modelo, especialmente en contextos con clases desbalanceadas y contextos especificos como lo son las decisiones para entidades bancarias.
+
+**Limitaciones contextuales del dataset**  
+Se reconoció que ciertos datos, como los geográficos o financieros específicos de EE. UU., no son directamente aplicables al contexto colombiano y deben ser descartados para mantener la relevancia.
+
+**Interpretabilidad mediante scorecard**  
+La construcción de una *scorecard* permitió transformar las salidas del modelo en puntajes interpretables para usuarios no técnicos. Esta herramienta facilita la comunicación del nivel de riesgo asociado a un solicitante de crédito. Además, la distribución de los puntajes permitió observar que la mayoría de los individuos se agrupan en el rango medio de riesgo, lo cual puede ser útil para definir umbrales de decisión personalizados.
+
+
+
+# Bibliografía
+
+1. Faressayah. (2023, 31 enero).  Lending Club Loan 💰 Defaulters 🏃 ♂ prediction. Kaggle. https://www.kaggle.com/code/faressayah/lending-club-loan-defaulters-prediction#%E2%9C%94%EF%B8%8F-loan_status
+
+
+2. Mahmoudalisalem. (2024, 24 octubre). Credit Risk Prediction | ANN96 vs XGBoost95. Kaggle. https://www.kaggle.com/code/mahmoudalisalem/credit-risk-prediction-ann96-vs-xgboost95
+
+
+3. Acharya, M. (2025, 21 abril). Letters of Credit – Definition, types & process. Cleartax. https://cleartax.in/s/letters-of-credit
+
+
+4. Mahoney, A. J. (2025, 24 enero). Credit Risk Modeling with Machine Learning. Towards Data Science. https://towardsdatascience.com/credit-risk-modeling-with-machine-learning-8c8a2657b4c4/
+
+
+
+
