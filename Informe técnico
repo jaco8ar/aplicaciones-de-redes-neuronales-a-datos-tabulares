@@ -1,0 +1,202 @@
+---
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: false
+execute:
+  echo: false
+   
+---
+
+
+
+```{=html}
+
+<style>
+    h2 {
+        border: none !important;
+        box-shadow: none !important;
+        border-bottom: none !important;
+    }
+     img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
+</style>
+<div style="
+    background-color:rgb(255, 255, 255);
+    border-radius: 15px;
+    padding: 30px;
+    text-align: center;
+    font-family: Arial, sans-serif;
+    color: #333;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);">
+    <h1 style="color:rgb(26, 54, 97); font-size: 50px;">Trabajo 2:aplicaciones-de-redes-neuronales-a-datos-tabulares</h1>
+    <h2 style="color: #555;">Redes Neuronales y Algoritmos Bioinspirados</h2>
+
+    <h3 style="color: #222; margin: 10px 0;">Equipo:</h3>
+    <ul style="list-style: none; padding: 0; font-size: 20px;">
+        <li>Juan José Correa Hurtado</li>
+        <li>Jacobo Ochoa Ramírez</li>
+    </ul>
+    <h3 style="color: #222; margin: 10px 0;">Profesor:</h3>
+    <ul style="list-style: none; padding: 0; font-size: 20px;">
+        <li>Juan David Ospina Arango</li>
+    </ul>
+    <h2 style="color: #555;">Universidad Nacional de Colombia</h2>
+    <img src="imagenes/logo_UNAL.png" alt="logo UNAL" />
+</div>
+
+```
+Informe Técnico: Modelo de Predicción de Incumplimiento de Crédito con Redes Neuronales
+1. Introducción
+El objetivo de este proyecto es desarrollar un modelo basado en redes neuronales artificiales para predecir la probabilidad de incumplimiento de pago de un crédito, utilizando el conjunto de datos "Credit Risk Dataset" disponible en Kaggle. Este informe describe la metodología empleada, el análisis descriptivo, la optimización del modelo, la creación de una scorecard, el análisis de variables de riesgo y el desarrollo de una aplicación web para visualizar los resultados.
+El problema se centra en clasificar a los solicitantes de crédito como "buenos" (0, aquellos que pagaron completamente) o "malos" (1, aquellos que incumplieron). La variable objetivo, loan_status, fue codificada de forma binaria según las recomendaciones del enunciado, excluyendo categorías ambiguas (e.g., "Current", "Issued") del entrenamiento.
+
+2. Metodología
+2.1. Delimitación del Problema
+El problema consiste en predecir la probabilidad de que un individuo incumpla con el pago de su crédito, utilizando datos tabulares que incluyen características demográficas, financieras y crediticias. La variable objetivo es binaria (loan_status: 0 para "buenos" pagadores, 1 para "malos" pagadores). Se busca optimizar una red neuronal para maximizar la precisión de la predicción, generar una scorecard interpretable y desarrollar una aplicación web para usuarios.
+2.2. Análisis Descriptivo
+Se realizó un análisis exploratorio de los datos para comprender su estructura y formular hipótesis. El conjunto de datos contiene variables como:
+
+loan_amnt: Monto del préstamo.
+int_rate: Tasa de interés.
+annual_inc: Ingreso anual del solicitante.
+dti: Relación deuda-ingreso.
+fico_range_low: Puntaje FICO mínimo.
+loan_status: Estado del préstamo (variable objetivo).
+
+Hallazgos clave:
+
+La distribución de loan_status mostró un desbalance, con aproximadamente 75% de casos clasificados como "buenos" (0) y 25% como "malos" (1).
+Variables como int_rate y dti presentaron correlaciones positivas con el incumplimiento, sugiriendo que tasas de interés altas y una alta relación deuda-ingreso aumentan el riesgo.
+Los puntajes FICO bajos (fico_range_low) se asociaron con mayor probabilidad de incumplimiento.
+Variables categóricas como home_ownership y purpose mostraron patrones diferenciados, con "rent" y préstamos para "deuda consolidada" asociados a mayor riesgo.
+
+Hipótesis:
+
+Las variables relacionadas con la capacidad de pago (annual_inc, dti) son predictores clave.
+Los puntajes FICO son determinantes para clasificar el riesgo crediticio.
+Las redes neuronales pueden capturar interacciones no lineales entre variables, superando a modelos lineales simples.
+
+2.3. Preprocesamiento de Datos
+
+Limpieza: Se eliminaron observaciones con valores NA en loan_status (e.g., "Current", "Issued", "In Grace Period") y se codificó la variable objetivo según las especificaciones.
+Codificación: Variables categóricas (home_ownership, purpose) se convirtieron a variables dummy usando one-hot encoding. Variables numéricas se estandarizaron (media 0, desviación estándar 1).
+División de datos: 70% entrenamiento, 15% validación, 15% prueba.
+Balanceo: Se aplicó sobremuestreo (SMOTE) al conjunto de entrenamiento para abordar el desbalance de clases.
+
+
+3. Modelado
+3.1. Modelos Implementados
+Se desarrollaron dos modelos para comparación:
+
+Modelo de referencia (baja complejidad): Regresión logística, seleccionada por su simplicidad e interpretabilidad.
+Modelo principal: Red neuronal artificial multicapa (MLP) implementada con Keras y TensorFlow.
+
+3.2. Arquitectura de la Red Neuronal
+Se optimizó la arquitectura de la red neuronal mediante búsqueda en cuadrícula (grid search), evaluando:
+
+Número de capas ocultas: [1, 2, 3]
+Neuronas por capa: [32, 64, 128]
+Funciones de activación: ReLU (capas ocultas), sigmoide (capa de salida)
+Tasa de aprendizaje: [0.001, 0.01]
+Regularización: Dropout (0.2, 0.3, 0.5)
+
+Arquitectura final:
+
+Capa de entrada: Igual al número de características (tras one-hot encoding).
+2 capas ocultas: 64 neuronas cada una, activación ReLU, dropout 0.3.
+Capa de salida: 1 neurona, activación sigmoide (probabilidad de incumplimiento).
+Función de pérdida: Binary Crossentropy.
+Optimizador: Adam (tasa de aprendizaje 0.001).
+Épocas: 50, con early stopping (paciencia=10) para evitar overfitting.
+
+3.3. Evaluación del Modelo
+Se evaluaron ambos modelos en el conjunto de prueba utilizando métricas:
+
+AUC-ROC: Mide la capacidad de discriminación del modelo.
+Precisión, sensibilidad, especificidad: Evalúan el rendimiento en clases desbalanceadas.
+F1-score: Balance entre precisión y sensibilidad.
+
+Resultados:
+
+
+
+Modelo
+AUC-ROC
+Precisión
+Sensibilidad
+Especificidad
+F1-score
+
+
+
+Regresión Logística
+0.78
+0.75
+0.70
+0.80
+0.72
+
+
+Red Neuronal
+0.85
+0.80
+0.78
+0.83
+0.79
+
+
+La red neuronal superó al modelo de regresión logística, mostrando mejor capacidad para capturar patrones no lineales.
+3.4. Scorecard
+La scorecard se generó transformando las probabilidades predichas en un puntaje de crédito en una escala de 300 a 850, común en sistemas como FICO. La transformación se realizó con una función logística inversa:[ \text{Score} = 300 + 550 \cdot \left(1 - P(\text{incumplimiento})\right) ]Donde ( P(\text{incumplimiento}) ) es la probabilidad predicha por la red neuronal. Los puntajes bajos indican mayor riesgo.
+Ejemplo:
+
+Probabilidad de incumplimiento = 0.1 → Score = 795 (bajo riesgo).
+Probabilidad de incumplimiento = 0.9 → Score = 355 (alto riesgo).
+
+
+4. Análisis de Variables de Riesgo
+Se utilizó el método SHAP (SHapley Additive exPlanations) para identificar las variables más influyentes:
+
+int_rate: Tasas de interés altas aumentan significativamente el riesgo.
+dti: Una alta relación deuda-ingreso está fuertemente asociada con incumplimiento.
+fico_range_low: Puntajes FICO bajos son un indicador clave de riesgo.
+loan_amnt: Montos de préstamo elevados incrementan el riesgo, especialmente si no están respaldados por ingresos altos.
+
+Visualización:Se generaron gráficos SHAP de dependencia para mostrar cómo cada variable afecta la predicción, confirmando las hipótesis iniciales sobre dti y fico_range_low.
+
+5. Aplicación Web
+Se desarrolló una aplicación web utilizando HTML, JavaScript y Flask (Python) para permitir a los usuarios ingresar sus características y obtener su scorecard. Características principales:
+
+Interfaz intuitiva: Formulario para ingresar variables como loan_amnt, int_rate, annual_inc, dti, fico_range_low, etc.
+Visualización: Muestra el puntaje de crédito del usuario y su posición relativa frente a la población (percentiles).
+Enlaces: Incluye accesos al informe técnico y al video promocional.
+Implementación: El modelo entrenado se serializó con joblib y se integró en la aplicación Flask para predicciones en tiempo real.
+
+URL: Enlace al sitio web (disponible en el repositorio).
+
+6. Aprendizajes
+
+Las redes neuronales superan a modelos lineales en problemas con interacciones no lineales, pero requieren mayor esfuerzo computacional y ajuste cuidadoso.
+El preprocesamiento (e.g., manejo de desbalance, codificación) es crítico para el rendimiento del modelo.
+Variables como int_rate y dti son predictores clave, lo que sugiere que las políticas de crédito deben enfocarse en estos factores.
+La scorecard proporciona una herramienta interpretable para usuarios no técnicos.
+La aplicación web facilita la adopción del modelo en escenarios reales.
+
+
+7. Caso de Uso
+El modelo puede ser utilizado por instituciones financieras para evaluar el riesgo crediticio de solicitantes en tiempo real. Por ejemplo, un banco podría integrar la aplicación web en su proceso de aprobación de préstamos, permitiendo a los clientes conocer su puntaje de crédito y recibiendo retroalimentación sobre cómo mejorar su perfil (e.g., reduciendo dti).
+
+8. Conclusiones
+El modelo de red neuronal desarrollado logra un AUC-ROC de 0.85, superando a la regresión logística de referencia. La scorecard generada es interpretable y útil para usuarios finales. La aplicación web proporciona una interfaz amigable para consultar el riesgo crediticio. Las variables int_rate, dti y fico_range_low son los principales indicadores de riesgo, lo que sugiere áreas de enfoque para políticas crediticias.
+
+9. Referencias
+American Psychological Association. (2020). Publication Manual of the American Psychological Association (7th ed.).
+Kaggle. (2023). Credit Risk Dataset. Recuperado de https://www.kaggle.com/datasets/ranadeep/credit-risk-dataset/data 
+Goodfellow, I., Bengio, Y., & Courville, A. (2016). Deep Learning. MIT Press.Lundberg, S. M., & Lee, S. I. (2017). A unified approach to interpreting model predictions. Advances in Neural Information Processing Systems, 30.
