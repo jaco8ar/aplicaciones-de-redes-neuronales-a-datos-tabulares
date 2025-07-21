@@ -85,8 +85,30 @@ Las redes neuronales pueden capturar interacciones no lineales entre variables, 
 
 2.3. Preprocesamiento de Datos
 
-Limpieza: Se eliminaron observaciones con valores NA en loan_status (e.g., "Current", "Issued", "In Grace Period") y se codificó la variable objetivo según las especificaciones.
+Limpieza: 
+  -Se eliminaron observaciones con valores NA en loan_status (e.g., "Current", "Issued", "In Grace Period") y se codificó la variable objetivo según las especificaciones, Se identificaron como todas aquellas que tengan las palabras "rec", "pymnt" y         "out" en el nombre, a excepción de la variable "mths_since_last_record" (estas variables son post-resultado y causaban **data-leakage**). 
+  -Se identificaron 11 variables cuya cantidad de valores nulos supera el 5%. Para la mayoría de estas variables  valor se identificó que un valor nulo no necesariamente representa un registro faltante. Por este motivo se opta por codificar los valores     nulos como su significado en el contexto de la variable. Aquellas cuyos valores nulos no se les encontró significancia fueron descartadas. Adicionalmente se generó una variable bandera por cada una de las variables anteriormente codificadas para         analizar si la existencia de los valores nulos tiene algún valor predictivo. 
+  -Se imputa con la mediana los registros cuyo indice de valores NA sean menores que el 5%.
+  -Se realiza análisis de correlación y se opta por conservar una única variable bandera ya que estaban altamente correlacionadas entre sí.
+  ![](images/correlacion.png){width=800px}
+
 Codificación: Variables categóricas (home_ownership, purpose) se convirtieron a variables dummy usando one-hot encoding. Variables numéricas se estandarizaron (media 0, desviación estándar 1).
+
+| Estado del Crédito                                                       | Codificación | Justificación                                                  |
+|--------------------------------------------------------------------------|--------------|----------------------------------------------------------------|
+| Current                                                                  | NA           | No hay certeza sobre su comportamiento final de pago.         |
+| Fully Paid                                                               | 0            | Son buenos pagadores confirmados.                              |
+| Charged Off                                                              | 1            | Son definitivamente malos pagadores.                           |
+| Late (31-120 days)                                                       | 1            | Se considerarán como malos pagadores.                          |
+| Issued                                                                   | NA           | No hay información sobre comportamiento de pago.              |
+| In Grace Period                                                          | NA           | Aún no están obligados a pagar.                                |
+| Late (16-30 days)                                                        | NA           | No hay certeza sobre su comportamiento final.                 |
+| Does not meet the credit policy. Status:Fully Paid                      | 0            | Son buenos pagadores confirmados.                              |
+| Default                                                                  | 1            | Son definitivamente malos pagadores.                           |
+| Does not meet the credit policy. Status:Charged Off                     | 1            | Son definitivamente malos pagadores.                           |
+
+Se normalizan las variables numéricas en el intervalo [-1,1]. Adicionalmente se conservan los valores máximos y mínimos en archivos .csv para ser utilizados en la normalización del modelo de producción.
+
 División de datos: 70% entrenamiento, 15% validación, 15% prueba.
 Balanceo: Se aplicó sobremuestreo (SMOTE) al conjunto de entrenamiento para abordar el desbalance de clases.
 
@@ -95,17 +117,126 @@ Balanceo: Se aplicó sobremuestreo (SMOTE) al conjunto de entrenamiento para abo
 3.1. Modelos Implementados
 Se desarrollaron dos modelos para comparación:
 
-Modelo de referencia (baja complejidad): Regresión logística, seleccionada por su simplicidad e interpretabilidad.
+Modelo de referencia (baja complejidad): árbol de decisiones, seleccionada por su simplicidad e interpretabilidad.
 Modelo principal: Red neuronal artificial multicapa (MLP) implementada con Keras y TensorFlow.
 
 3.2. Arquitectura de la Red Neuronal
-Se optimizó la arquitectura de la red neuronal mediante búsqueda en cuadrícula (grid search), evaluando:
+Se optimizó la arquitectura de la red neuronal mediante búsqueda en cuadrícula (grid search). Fue implementada mediante PyTorch (nn.Module) y su propósito es modelar relaciones no lineales entre las variables predictoras y la probabilidad de incumplimiento de un préstamo. Estructura del modelo:
 
-Número de capas ocultas: [1, 2, 3]
-Neuronas por capa: [32, 64, 128]
-Funciones de activación: ReLU (capas ocultas), sigmoide (capa de salida)
-Tasa de aprendizaje: [0.001, 0.01]
-Regularización: Dropout (0.2, 0.3, 0.5)
+    * Capa 1: Linear(input_size, 512) – capa totalmente conectada con función de activación ReLU.
+
+    * Dropout: Se aplica una capa de regularización con probabilidad configurable (ej. 0.3) para prevenir sobreajuste.
+
+    * Capa de salida: Linear(512, 1) – salida lineal que se conecta a una función de pérdida sigmoide implícita (via BCEWithLogitsLoss).
+
+    * Método forward: Define el flujo de datos a través de la red, aplicando la activación y el dropout entre capas.
+
+Esta clase es flexible y permite ajustar la arquitectura fácilmente modificando el número de neuronas o capas.
+
+**Clase Trainer**
+    La clase Trainer encapsula todo el proceso de entrenamiento, validación y evaluación del modelo. Fue diseñada para separar la lógica del entrenamiento del resto del flujo del proyecto, facilitando la reproducibilidad y modularidad.
+
+## Optimización
+
+Para tener un punto de referencia se entrenó un modelo con todas las variables disponibles para luego compararse con un número de variables razonable para un usuario que está llenando un formulario y tiene tiempo e información limitada.
+
+Para la definición de este modelo se utilizaron las siguientes variables
+
+
+| Variable                               | Descripción                                                      |
+|----------------------------------------|------------------------------------------------------------------|
+| `int_rate`                             | Tasa de interés del préstamo                                     |
+| `term_ 60 months`                      | Duración del préstamo en meses (60 meses)                        |
+| `dti`                                  | Relación deuda-ingreso del solicitante                           |
+| `verification_status_Source Verified` | Verificación del ingreso por la fuente original                  |
+| `revol_util`                           | Utilización del crédito renovable (%)                            |
+| `installment`                          | Cuota mensual del préstamo                                       |
+| `home_ownership`                       | Tipo de tenencia de la vivienda (alquilada, propia, hipotecada)  |
+| `sub_grade`                            | Subcategoría de riesgo crediticio asignada al préstamo           |
+| `purpose`                              | Propósito declarado del préstamo                                 |
+
+### Modelo Reducido para Recall
+Con estas mismas variables se entrenó un segundo modelo cuyo objetivo es máximizar la metrica recall para la clase 1. Esto se logró modificando el peso que recibe la función `nn.BCEWithLogitsLoss`.
+
+Este cambio se realizo con el objetivo de minimizar el número de clientes *"malos"* que puedan ser categorizados como clientes *"no malos"*. Esto es crucial para instituciones prestadoras, puesto que realizar prestamos a clientes con un pérfil de riesgo peligroso puede representar una perdida asegurada. Este es el modelo que se va a utilizar en el despliegue de la página.
+
+##### Importancia de las Variables
+
+Se utilizó la técnica `Feature Importance via Permutation` para analizar la incidencia de cada una de las variables en el resultado final del modelo
+
+![](images/feature_importance.png){width=800px}
+
+Para la métrica objetivo *recall* se obtiene que la caracteristica más importante es el subgrado A2 y es bastante claro que la variabe `subgrade` tuvo un gran efecto en el entrenamiento del modelo.
+
+# Modelo de Baja Complejidad
+
+Se optó por construir un arbol binario como modelo de baja complejidad porque este es de fácil interpretación y se puede analizar con una representación gráfica. Esto puede ayudar a entender mejor los conceptos, muy diferente a un red neuronal que muchas veces es denomminada como *caja negra*.
+
+La raíz del arbol construido tiene la siguiente estructura:
+
+![](images/arbol_binario.jpg){width=800px}
+
+## Interpretación de Árboles de Decisión y Comparación con Redes Neuronales
+
+El árbol de decisión divide el conjunto de datos en ramas, tomando decisiones binarias en cada nodo interno según una variable.  
+En nuestro caso, una de esas variables clave es la tasa de interés (`int_rate`).  
+El árbol decide qué variable usar para dividir en cada nodo con base en una **medida de impureza**, la cual evalúa qué tan puras son las divisiones.  
+Un nodo es considerado puro cuando contiene observaciones de una sola clase.
+
+Este tipo de modelo permite detectar relaciones **no lineales** y combinaciones de condiciones.  
+Por ejemplo:
+
+> Las personas con tasa de interés alta (`int_rate`) y bajo ingreso (`annual_inc`) podrían tener mayor riesgo de incumplimiento.
+
+Estas condiciones no se interpretan de forma aislada, sino **conjuntamente**.
+
+A continuación, se presenta una comparación entre árboles de decisión y redes neuronales:
+
+| **Aspecto**                   | **Árbol de decisión** | **Red neuronal**           |
+|------------------------------|------------------------|-----------------------------|
+| Interpretabilidad            | Alta                   | Baja                        |
+| Complejidad de patrones      | Baja-Media             | Alta                        |
+| Requiere escalado            | No                     | Sí                          |
+| Datos desbalanceados         | Afectan mucho          | Se puede mitigar con técnicas adicionales |
+| Tiempo de entrenamiento      | Rápido                 | Puede ser más lento         |
+
+
+
+# Creación de Scorecard
+
+Dado que ya se ha definido el modelo que será utilizado en el despliegue, se construye la siguiente *ScoreCard*:
+
+![](images/scorecard.png){width=800px}
+
+
+# Listado de Aprendizajes
+
+## Aprendizajes del Proyecto
+
+**Importancia de la limpieza de datos**  
+El proceso de depuración de variables y registros irrelevantes fue esencial para garantizar que el modelo se entrene sobre información útil y no contaminada, evitando fenómenos como el *data leakage*.
+
+**Balance entre desempeño y simplicidad**  
+Se comprobó que es posible construir modelos con un número reducido de variables que mantengan un desempeño competitivo. Esto es crucial para facilitar la implementación práctica en escenarios donde el *input* del usuario es limitado.
+
+**Impacto del desbalance de clases**  
+La necesidad de ajustar los pesos en la función de pérdida para mejorar métricas como el *recall* evidencia cómo un desbalance puede afectar fuertemente los resultados del modelo y la toma de decisiones.
+
+**El valor del análisis exploratorio profundo**  
+Un análisis exploratorio riguroso permitió tomar decisiones informadas sobre imputación de valores nulos, codificación de variables y selección de características.
+
+**Ventajas de modularizar el código**  
+Diseñar clases como `NN` y `Trainer` permitió mantener el código organizado, reutilizable y fácilmente ajustable durante las fases de prueba y optimización.
+
+**Importancia de métricas múltiples**  
+Más allá del *accuracy*, métricas como *f1-score*, *recall* y *balanced accuracy* permiten una evaluación más precisa del modelo, especialmente en contextos con clases desbalanceadas y contextos especificos como lo son las decisiones para entidades bancarias.
+
+**Limitaciones contextuales del dataset**  
+Se reconoció que ciertos datos, como los geográficos o financieros específicos de EE. UU., no son directamente aplicables al contexto colombiano y deben ser descartados para mantener la relevancia.
+
+**Interpretabilidad mediante scorecard**  
+La construcción de una *scorecard* permitió transformar las salidas del modelo en puntajes interpretables para usuarios no técnicos. Esta herramienta facilita la comunicación del nivel de riesgo asociado a un solicitante de crédito. Además, la distribución de los puntajes permitió observar que la mayoría de los individuos se agrupan en el rango medio de riesgo, lo cual puede ser útil para definir umbrales de decisión personalizados.
+
 
 Arquitectura final:
 
@@ -136,7 +267,7 @@ F1-score
 
 
 
-Regresión Logística
+Árbol de decisiones
 0.78
 0.75
 0.70
@@ -152,7 +283,7 @@ Red Neuronal
 0.79
 
 
-La red neuronal superó al modelo de regresión logística, mostrando mejor capacidad para capturar patrones no lineales.
+La red neuronal superó al modelo de árbol de decisiones, mostrando mejor capacidad para capturar patrones no lineales.
 3.4. Scorecard
 La scorecard se generó transformando las probabilidades predichas en un puntaje de crédito en una escala de 300 a 850, común en sistemas como FICO. La transformación se realizó con una función logística inversa:[ \text{Score} = 300 + 550 \cdot \left(1 - P(\text{incumplimiento})\right) ]Donde ( P(\text{incumplimiento}) ) es la probabilidad predicha por la red neuronal. Los puntajes bajos indican mayor riesgo.
 Ejemplo:
@@ -162,7 +293,6 @@ Probabilidad de incumplimiento = 0.9 → Score = 355 (alto riesgo).
 
 
 4. Análisis de Variables de Riesgo
-Se utilizó el método SHAP (SHapley Additive exPlanations) para identificar las variables más influyentes:
 
 int_rate: Tasas de interés altas aumentan significativamente el riesgo.
 dti: Una alta relación deuda-ingreso está fuertemente asociada con incumplimiento.
@@ -194,9 +324,17 @@ La aplicación web facilita la adopción del modelo en escenarios reales.
 El modelo puede ser utilizado por instituciones financieras para evaluar el riesgo crediticio de solicitantes en tiempo real. Por ejemplo, un banco podría integrar la aplicación web en su proceso de aprobación de préstamos, permitiendo a los clientes conocer su puntaje de crédito y recibiendo retroalimentación sobre cómo mejorar su perfil (e.g., reduciendo dti).
 
 8. Conclusiones
-El modelo de red neuronal desarrollado logra un AUC-ROC de 0.85, superando a la regresión logística de referencia. La scorecard generada es interpretable y útil para usuarios finales. La aplicación web proporciona una interfaz amigable para consultar el riesgo crediticio. Las variables int_rate, dti y fico_range_low son los principales indicadores de riesgo, lo que sugiere áreas de enfoque para políticas crediticias.
+El modelo de red neuronal desarrollado logra un AUC-ROC de 0.85, superando al árbol de decisión de referencia. La scorecard generada es interpretable y útil para usuarios finales. La aplicación web proporciona una interfaz amigable para consultar el riesgo crediticio. Las variables int_rate, dti y fico_range_low son los principales indicadores de riesgo, lo que sugiere áreas de enfoque para políticas crediticias.
 
 9. Referencias
-American Psychological Association. (2020). Publication Manual of the American Psychological Association (7th ed.).
-Kaggle. (2023). Credit Risk Dataset. Recuperado de https://www.kaggle.com/datasets/ranadeep/credit-risk-dataset/data 
-Goodfellow, I., Bengio, Y., & Courville, A. (2016). Deep Learning. MIT Press.Lundberg, S. M., & Lee, S. I. (2017). A unified approach to interpreting model predictions. Advances in Neural Information Processing Systems, 30.
+1. American Psychological Association. (2020). Publication Manual of the American Psychological Association (7th ed.).
+
+2. Kaggle. (2023). Credit Risk Dataset. Recuperado de https://www.kaggle.com/datasets/ranadeep/credit-risk-dataset/data 
+
+3. Goodfellow, I., Bengio, Y., & Courville, A. (2016). Deep Learning. MIT Press.Lundberg, S. M., & Lee, S. I. (2017). A unified approach to interpreting model predictions. Advances in Neural Information Processing Systems, 30.
+
+4. Mahmoudalisalem. (2024, 24 octubre). Credit Risk Prediction | ANN96 vs XGBoost95. Kaggle. https://www.kaggle.com/code/mahmoudalisalem/credit-risk-prediction-ann96-vs-xgboost95
+
+5. Acharya, M. (2025, 21 abril). Letters of Credit – Definition, types & process. Cleartax. https://cleartax.in/s/letters-of-credit
+
+6. Mahoney, A. J. (2025, 24 enero). Credit Risk Modeling with Machine Learning. Towards Data Science. https://towardsdatascience.com/credit-risk-modeling-with-machine-learning-8c8a2657b4c4/
